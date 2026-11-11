@@ -23,6 +23,7 @@ def native(tmp_path):
     (dashboard / "app.js").write_text("console.log('native');", encoding="utf-8")
     (dashboard / "styles.css").write_text("body{color:green}", encoding="utf-8")
     (dashboard / "assets" / "machine.webp").write_bytes(b"example-image-bytes")
+    (dashboard / "assets" / "font.woff2").write_bytes(b"example-font-bytes")
     (dashboard / "private.json").write_text('{"secret":"must-not-serve"}', encoding="utf-8")
     (dashboard / "server.py").write_text("# must not serve", encoding="utf-8")
     (tmp_path / "outside.css").write_text("outside{}", encoding="utf-8")
@@ -101,7 +102,7 @@ def test_empty_tracking_list_is_valid_after_last_machine_is_removed(native):
 def test_static_assets_are_available_but_secrets_and_traversal_are_not(native):
     status, body, headers = raw_get(native.base, "/",native.client.opener)
     assert status == 200 and b"Native dashboard" in body and headers["Cache-Control"] == "no-store"
-    for path in ("/app.js", "/styles.css", "/assets/machine.webp"):
+    for path in ("/app.js", "/styles.css", "/assets/machine.webp", "/assets/font.woff2"):
         status, body, headers = raw_get(native.base, path)
         assert status == 200 and body
         assert headers["Cache-Control"] == "no-store" and headers["X-Content-Type-Options"] == "nosniff"

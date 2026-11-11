@@ -45,6 +45,8 @@
         codes:list(raw && raw.codes), errors:list(raw && raw.errors),
         health:list(raw && raw.health), health_text:list(raw && raw.health_text),
         spark:current ? list(raw.spark).map(finite) : [],
+        sparkB:current && chb ? list(raw.spark_b).map(finite) : [],
+        alarmCh:raw && raw.alarm_active && ['A','B','AB'].includes(raw.alarm_ch) ? raw.alarm_ch : null,
         alarm_active:Boolean(raw && raw.alarm_active), alarm_shadow:Boolean(raw && raw.alarm_shadow),
         dataAvailable:current && (finite(raw.ratio)!==null || (chb && finite(raw.ratio_b)!==null)), raw
       };

@@ -1,0 +1,39 @@
+/* Login (approved mock v15): the product logo and the form only, centred on white.
+   The machine illustration stays in the HTML (tests and team approval) but is not shown; delete the .brand-panel rule to bring it back. */
+body{background:#fff;font-family:"Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif}
+main{max-width:none;padding:48px 16px}
+.auth-shell{display:flex!important;flex-direction:column;align-items:center;gap:30px;min-height:0;background:transparent;box-shadow:none;border:0;border-radius:0;overflow:visible}
+.auth-shell>.brand-panel{display:none!important}
+.auth-topbar{position:static!important;display:flex;justify-content:center;width:100%;padding:0}
+.auth-wordmark{position:static!important;flex-direction:column;align-items:center;gap:12px;max-width:none;text-align:center}
+.auth-wordmark>.product-mark{width:112px!important;height:112px!important;content:url(../assets/brand/grainguard-product-256.webp);background:none}
+.auth-wordmark .wordmark-text>div{font-size:32px;font-weight:700;color:#1C1C1E}
+.auth-wordmark .wordmark-text>div span{color:#1C1C1E}
+.auth-wordmark small.brand-credit,.auth-wordmark .brand-attribution{justify-content:center;font-size:14px;color:#86868B}
+.language-button{position:fixed!important;top:24px!important;right:24px!important;border-radius:12px}
+.auth-shell>.form-panel{width:min(480px,100%);padding:0!important;background:transparent;box-shadow:none}
+.form-panel input:not([type=checkbox]):not([type=radio]),.form-panel select{height:54px;border-radius:12px;font-size:17px}
+.form-panel button[type=submit],.form-panel .primary{height:54px;border-radius:12px;font-size:17px;background:#1E3246;border-color:#1E3246}
+.view h1{font-size:32px}
+/* Create account fits one screen (no scrolling): small inline logo at every size; 2-column form on screens >= 900 px wide.
+   Order fills naturally: name | phone, role | username, password | confirm, then the button full width. */
+.auth-shell:has(.form-panel[data-view="signup"]){gap:16px}
+main:has(.form-panel[data-view="signup"]){padding-top:24px;padding-bottom:16px}
+.auth-shell:has(.form-panel[data-view="signup"]) .auth-wordmark{flex-direction:row;gap:12px;text-align:left}
+.auth-shell:has(.form-panel[data-view="signup"]) .auth-wordmark>.product-mark{width:48px!important;height:48px!important}
+.auth-shell:has(.form-panel[data-view="signup"]) .auth-wordmark .wordmark-text>div{font-size:24px}
+.form-panel[data-view="signup"] .view h1{margin-bottom:14px}
+.form-panel[data-view="signup"] .back{margin-bottom:4px}
+@media (max-width:899px){
+  main:has(.form-panel[data-view="signup"]){padding-top:16px}
+  .form-panel[data-view="signup"] .view h1{font-size:24px;margin-bottom:10px}
+  .form-panel[data-view="signup"] input:not([type=checkbox]):not([type=radio]){height:46px}
+  .form-panel[data-view="signup"] .field small{margin-top:3px;line-height:1.4}
+  #signup-form>.field,#signup-form>.role-field{margin-bottom:9px}
+}
+@media (min-width:900px){
+  .auth-shell>.form-panel[data-view="signup"]{width:min(880px,100%)}
+  #signup-form{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;align-items:start}
+  #signup-form>.field,#signup-form>.role-field{margin:0 0 14px}
+  #signup-form>.primary-button{grid-column:1/-1;margin-top:6px}
+}

@@ -28,26 +28,37 @@
     const last = m.latest ? dateLabel(m.latest.ts,m.latest.date,lang) : '—';
     return `<section class="panel node-maintenance-summary"><div class="section-head"><div><p class="eyebrow">${esc(t.currentNode)} ${m.id}</p><h2>${esc(t.title)}</h2></div>${button(t.all,'maintenance-select',m.id)}</div><div class="info-row"><span>${esc(t.last)}</span><strong>${esc(last)}</strong></div><p class="settings-copy">${esc(!m.loaded?t.load:m.entries.length?t.scope:t.noEntries)}</p><div class="toolbar">${button(t.record,'record',m.id)}</div></section>`;
   }
-  function render({life,nodes=[],selectedId,lang='th',canManage=false}) {
-    const t=words[lang] || words.th, available=array(nodes);
-    if (!available.length) return `<section class="panel empty"><h2>${esc(t.noMachines)}</h2><p>${esc(t.emptyNote)}</p></section>`;
+  // Screen care (approved mock v15): equal wear tiles for every tracked machine, then the selected machine.
+  // Shows the Hub's own wear figure and cycle facts only; no invented remaining-life estimate.
+  const MORE = {th:{used:'ใช้ไปแล้ว',runH:'ชั่วโมงเดินเครื่องรอบนี้',days:'จำนวนวันรอบนี้',start:'เริ่มรอบ',slot:'ช่องว่าง',cycles:'รอบที่ผ่านมา',cycle:'รอบ',current:'กำลังใช้',h:'ชม.',d:'วัน',near:'ใกล้ครบอายุ ควรเตรียมเปลี่ยน',noWear:'ยังไม่มีข้อมูลการสึก'},
+                en:{used:'Used',runH:'Run hours this cycle',days:'Days this cycle',start:'Cycle start',slot:'Empty slot',cycles:'Past cycles',cycle:'Cycle',current:'In use',h:'h',d:'days',near:'Near end of life, prepare a replacement',noWear:'No wear data yet'}};
+  function render({life,nodes=[],selectedId,lang='th',canManage=false,icon=null}) {
+    const t=words[lang] || words.th, x=MORE[lang==='en'?'en':'th'], available=array(nodes), ic=n=>icon?icon(n):'';
+    if (!available.length) return `<div class="gg-pgh"><h1>${esc(t.title)}</h1></div><div class="gg-ghost gg-wide"><span>${esc(t.noMachines)}<small>${esc(t.emptyNote)}</small></span></div>`;
     const node=available.find(item=>idOf(item)===Number(selectedId)) || available[0];
-    const m=model(life,node), machine=m.machine;
+    const m=model(life,node), machine=m.machine, st=machine && machine.state || null;
     const reasonOf = entry => t[entry.reason] || (lang==='th' && entry.reason_th) || entry.reason || t.other;
     const start = dateLabel(machine && machine.start_ts,machine && machine.start_date,lang);
-    const last = m.latest ? dateLabel(m.latest.ts,m.latest.date,lang) : '—';
-    return `<div class="maintenance-layout"><aside class="panel maintenance-node-list"><label class="field" for="maintenance-node"><span>${esc(t.choose)}</span><select id="maintenance-node">${available.map(item=>`<option value="${idOf(item)}" ${idOf(item)===m.id?'selected':''}>${esc(t.node)} ${idOf(item)} · ${esc(nameOf(item,t))}</option>`).join('')}</select></label><div class="maintenance-node-rail" aria-label="${esc(t.choose)}">${available.map(item=>{const itemModel=model(life,item);return `<button type="button" class="maintenance-node-option ${idOf(item)===m.id?'is-selected':''}" data-action="maintenance-select" data-id="${idOf(item)}" aria-pressed="${idOf(item)===m.id}"><span class="maintenance-node-number">${esc(t.node)} ${idOf(item)}</span><strong>${esc(nameOf(item,t))}</strong><small>${itemModel.entries.length} ${esc(t.count)}</small></button>`;}).join('')}</div></aside><div class="maintenance-content"><section class="panel maintenance-identity">
-      <div class="section-head maintenance-primary"><div><h2>${esc(nameOf(node,t))}</h2><p>${esc(t.last)} <strong>${esc(!m.loaded?t.notKnown:m.latest?last:t.none)}</strong></p></div>${canManage?button(t.record,'record',m.id,'primary'):''}</div>
-      ${!m.loaded?`<p class="callout">${esc(t.unavailable)}</p>`:''}
-      ${machine?.implicit_start?`<p class="callout">${esc(t.implicit)}</p>`:''}
-      <details class="maintenance-tech" data-machine="${m.id}">
-       <summary>${lang==='en'?'Machine and cycle details':'ข้อมูลเครื่องและรอบตะแกรง'}</summary>
-       <div class="info-row"><span>${esc(t.mac)}</span><strong class="mono">${esc(node.mac || t.unassigned)}</strong></div>
-       ${m.loaded?`<div class="info-row"><span>${esc(t.since)}</span><strong>${esc(start==='—'?t.notKnown:start)}</strong></div>`:''}
-       <p class="settings-copy">${esc(t.scope)}</p>
-       ${button(t.detail,'detail',m.id)}
-      </details>
-     </section><section class="panel maintenance-records"><div class="section-head"><h2>${esc(t.records)}</h2><span class="badge">${m.entries.length} ${esc(t.count)}</span></div>${m.entries.length?`<div class="table-wrap"><table><thead><tr><th>${esc(t.date)}</th><th>${esc(t.reason)}</th><th>${esc(t.note)}</th></tr></thead><tbody>${m.entries.map(entry=>`<tr><td>${esc(dateLabel(entry.ts,entry.date,lang))}</td><td>${esc(reasonOf(entry))}</td><td>${esc(entry.note || '—')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty maintenance-records-empty">${esc(m.loaded?t.noEntries:t.unavailable)}</div>`}</section></div></div>`;
+    const pct = v => typeof v==='number' && Number.isFinite(v) ? Math.max(0,Math.min(100,v)) : null;
+    const num = (v,d=0) => typeof v==='number' && Number.isFinite(v) ? v.toFixed(d) : '—';
+    const tiles = available.map(item=>{const im=model(life,item),p=pct(im.machine && im.machine.state && im.machine.state.used_pct);
+      return `<button type="button" class="gg-wtile${idOf(item)===m.id?' on':''}${p>=90?' hi':''}" data-action="maintenance-select" data-id="${idOf(item)}" aria-pressed="${idOf(item)===m.id}"><span class="gg-wt-id"><b class="num">${String(idOf(item)).padStart(2,'0')}</b>${esc(nameOf(item,t))}</span><span class="gg-wt-pct num">${p==null?'—':Math.round(p)+'%'}</span><span class="gg-bar"><i style="width:${p||0}%"></i></span><small>${im.entries.length} ${esc(t.count)}</small></button>`;});
+    while (tiles.length < 6) tiles.push(`<div class="gg-wtile gg-wghost"><small>${esc(x.slot)}</small></div>`);
+    const used=pct(st && st.used_pct);
+    const cycles=array(machine && machine.cycles).slice().reverse();
+    return `<div class="gg-pgh"><h1>${esc(t.title)}</h1><span class="gg-muted">${esc(t.scope)}</span></div>
+     <div class="gg-wgrid">${tiles.join('')}</div>
+     <div class="gg-sgrid2">
+      <section class="gg-card gg-sdetail"><div class="gg-rhd"><h2><span class="num">${String(m.id).padStart(2,'0')}</span>${esc(nameOf(node,t))}</h2>${used>=90?`<span class="gg-chip" data-level="fault">${ic('alert')}${esc(x.near)}</span>`:''}${canManage?`<button type="button" class="gg-btn gg-pri" data-action="record" data-id="${m.id}">${ic('plus')}${esc(t.record)}</button>`:''}</div>
+       ${!m.loaded?`<p class="gg-alert">${esc(t.unavailable)}</p>`:''}${machine && machine.implicit_start?`<p class="gg-hnote">${esc(t.implicit)}</p>`:''}
+       <div class="gg-stats4"><div><small>${esc(x.used)}</small><b class="num${used>=90?' hi':''}">${used==null?'—':Math.round(used)+'%'}</b><span class="gg-bar"><i style="width:${used||0}%"></i></span></div><div><small>${esc(x.runH)}</small><b class="num">${num(st && st.run_h,1)}</b></div><div><small>${esc(x.days)}</small><b class="num">${num(st && st.days,1)}</b></div><div><small>${esc(x.start)}</small><b>${esc(start==='—'?t.notKnown:start)}</b></div></div>
+       ${st && st.stage_th && lang==='th'?`<p class="gg-hnote">${esc(st.stage_th)}</p>`:''}
+       <div class="gg-cyc"><h3 class="gg-h3">${esc(x.cycles)}</h3>${cycles.length?cycles.slice(0,4).map((c,i)=>`<div class="gg-hrow"><span class="gg-hn">${esc(x.cycle)} ${cycles.length-i}</span><b>${esc(c.start_date||'—')} → ${esc(c.end_date||x.current)}</b><small class="num">${num(c.days,1)} ${esc(x.d)} · ${num(c.run_h,1)} ${esc(x.h)}</small>${c.outcome_th||c.outcome?`<small>${esc(lang==='th'?c.outcome_th||c.outcome:c.outcome)}</small>`:''}</div>`).join(''):`<div class="gg-hrow"><span class="gg-hn">${esc(x.cycle)} 1</span><b>${esc(start==='—'?t.notKnown:start)} → ${esc(x.current)}</b><small>${esc(used==null?x.noWear:'')}</small></div>`}</div>
+       <div class="gg-rhd gg-foot"><span class="gg-muted">${esc(t.mac)} <b class="num">${esc(node.mac || t.unassigned)}</b></span><button type="button" class="gg-btn" data-action="detail" data-id="${m.id}">${esc(t.detail)}</button></div>
+      </section>
+      <section class="gg-card gg-shist"><div class="gg-rhd"><h3 class="gg-h3">${esc(t.records)}</h3><span class="gg-muted gg-right">${m.entries.length} ${esc(t.count)}</span></div>
+       ${m.entries.length?m.entries.slice(0,6).map(entry=>`<div class="gg-hrow"><span class="gg-hn">${ic('screen')}</span><b>${esc(dateLabel(entry.ts,entry.date,lang))}</b><small>${esc(reasonOf(entry))}${entry.note?' · '+esc(entry.note):''}</small></div>`).join(''):`<div class="gg-chart-msg gg-static">${esc(m.loaded?t.noEntries:t.unavailable)}</div>`}
+      </section></div>`;
   }
   const api={render,summary,model,dateLabel};
   root.GGMaintenanceView=api;

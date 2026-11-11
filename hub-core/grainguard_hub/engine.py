@@ -151,8 +151,9 @@ class NodeState:
         self.cls_since = 0.0
         self.offline_notified = False
         self.offline_notified_t = 0.0
-        # sparkline buckets: bucket index -> [sum, count]
+        # sparkline buckets: bucket index -> [sum, count]; spark_b is channel B (piezo) when the node reports it
         self.spark: Dict[int, List[float]] = {}
+        self.spark_b: Dict[int, List[float]] = {}
 
     @property
     def assigned(self) -> bool:
@@ -430,6 +431,12 @@ class Engine:
             sp[1] += 1
             for k in [k for k in st.spark if k < b - self.SPARK_SLOTS]:
                 del st.spark[k]
+            if bch is not None and bch["ratio"] is not None:
+                spb = st.spark_b.setdefault(b, [0.0, 0])
+                spb[0] += bch["ratio"]
+                spb[1] += 1
+            for k in [k for k in st.spark_b if k < b - self.SPARK_SLOTS]:
+                del st.spark_b[k]
             # alarm tracking (tele-derived)
             if t["st"] == "ALARM":
                 st.alarm_streak += 1
@@ -958,11 +965,12 @@ class Engine:
             self._today_cache = (now, v)
         return v
 
-    def _spark_list(self, st: NodeState, now: float) -> List[Optional[float]]:
+    def _spark_list(self, st: NodeState, now: float, attr: str = "spark") -> List[Optional[float]]:
         b = int(now // self.SPARK_BUCKET)
+        buckets = getattr(st, attr)
         out: List[Optional[float]] = []
         for i in range(b - self.SPARK_SLOTS + 1, b + 1):
-            v = st.spark.get(i)
+            v = buckets.get(i)
             out.append(round(v[0] / v[1], 3) if v and v[1] else None)
         return out
 
@@ -988,6 +996,9 @@ class Engine:
             "alarm_active": st.alarm_active, "alarm_shadow": bool(st.alarm_active and st.alarm_shadow),
             "codes": self.errors.codes(st.mac), "errors": self.errors.entries(st.mac),
             "spark": self._spark_list(st, now),
+            "spark_b": self._spark_list(st, now, "spark_b"),
+            # which sensor raised the active alarm, as the node reported it (A pickup, B piezo, AB both); None if unknown
+            "alarm_ch": (str(st.alarm_info.get("ch")).upper() if st.alarm_active and st.alarm_info.get("ch") else None),
         }
         if n:
             d["today_alarms"] = int(today["alarms"].get(n, 0))
@@ -1005,7 +1016,8 @@ class Engine:
                 if st is None:
                     nodes.append({"n": n, "mac": None, "label": self.default_label(n), "state": "EMPTY", "cls": "empty",
                                   "last_seen_s": None, "health": [], "health_text": [], "codes": [], "errors": [],
-                                  "spark": [None] * self.SPARK_SLOTS, "today_alarms": 0, "today_run_min": 0.0, "since": int(self.boot_ts)})
+                                  "spark": [None] * self.SPARK_SLOTS, "spark_b": [None] * self.SPARK_SLOTS,
+                                  "alarm_ch": None, "today_alarms": 0, "today_run_min": 0.0, "since": int(self.boot_ts)})
                 else:
                     nodes.append(self._node_dict(st, now, today))
             new = []

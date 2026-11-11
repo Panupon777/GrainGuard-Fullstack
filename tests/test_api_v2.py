@@ -182,6 +182,30 @@ def test_sessions_guard_the_new_endpoints_and_legacy_token_cannot_bypass(tmp_pat
         hub.stop()
 
 
+def test_rejected_post_reads_the_body_before_answering(tmp_path):
+    # A 403 sent before the request body is read leaves unread bytes in the socket; closing it then resets the
+    # connection (always on Windows, sometimes on Linux) and the client sees a network error instead of the 403.
+    import socket
+    cfg = Config(data_dir=str(tmp_path / "d"), mqtt_enabled=False, http_host="127.0.0.1", http_port=0, admin_token="s3cret")
+    hub = Hub(cfg, mqtt_enabled=False)
+    hub.start()
+    try:
+        with socket.create_connection(("127.0.0.1", hub.http_port), timeout=5) as s:
+            s.sendall(b"POST /api/lifecycle/1/undo HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
+                      b"Content-Length: 2\r\nConnection: close\r\n\r\n")
+            s.settimeout(0.5)
+            with pytest.raises(socket.timeout):                     # no early answer while the body is still on its way
+                s.recv(1)
+            s.settimeout(5)
+            s.sendall(b"{}")
+            reply = b""
+            while chunk := s.recv(4096):
+                reply += chunk
+        assert reply.startswith(b"HTTP/1.1 403")
+    finally:
+        hub.stop()
+
+
 def test_clean_stop_marks_run_state_and_unclean_start_raises_E506(tmp_path):
     import sqlite3
     cfg = Config(data_dir=str(tmp_path / "d"), mqtt_enabled=False)

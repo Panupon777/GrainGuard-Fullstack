@@ -18,86 +18,121 @@
   for(const n of c.nodes)out[level(n,displayAssessment(c.assess(n),c.lang))]++;
   return out;
  }
+ const more={th:{slot:'ช่องว่าง',list:'ดูรายการ',recent:'เหตุการณ์ล่าสุด',viewAll:'ทั้งหมด',of:'จาก',machines:'เครื่อง',screen:'ตะแกรง',unack:'แจ้งเตือน · ยังไม่รับทราบ',acked:'รับทราบแล้ว · ยังเกิดอยู่',short:{alarm:'Alarm',fault:'ขัดข้อง',offline:'ขาดข้อมูล',learning:'เรียนรู้',rest:'พักเครื่อง',normal:'ทำงาน'}},
+  en:{slot:'Empty slot',list:'View list',recent:'Recent events',viewAll:'All',of:'of',machines:'machines',screen:'Screen',unack:'Alarm · not acknowledged',acked:'Acknowledged · still active',short:{alarm:'Alarm',offline:'No data',learning:'Learning',rest:'Idle',normal:'Running'}}};
+ const pad=n=>String(n).padStart(2,'0');
+ // One card per tracked machine. Both sensor columns keep the same rows (light + name, number, graph area).
  function card(n,c){
-  const {w,esc:e,icon,btn}=c,a=displayAssessment(c.assess(n),c.lang),l=level(n,a),label=title(n,a,w);
-  return `<article class="machine-card monitor-card" data-level="${l}" data-node="${n.id}" data-ack="${!!n.ack}" aria-label="Node ${n.id} · ${e(c.name(n))} · ${e(label)}">
-   <header class="monitor-card-head"><button class="node-heading" data-action="detail" data-id="${n.id}"><span class="node-number"><small>NODE</small><strong>${String(n.id).padStart(2,'0')}</strong></span><span class="node-name">${e(c.name(n))}</span></button><span class="monitor-status" data-level="${l}">${icon(c.statusIcon(l))}<span>${e(label)}</span></span></header>
-   <div class="monitor-identity"><span title="MAC">${e(n.mac||w.empty)}</span><span>${e(n.mode||'—')}</span></div>
-   <div class="monitor-readings">${c.readings(n,'a')}${c.readings(n,'b')}</div>
-   <div class="monitor-condition">${a.needsAttention?`<button class="condition-link" data-action="inspect" data-id="${n.id}" title="${e(a.summary)}">${icon(l==='offline'?'unlink':'alert')}<span>${e(n.codes.length?n.codes.join(' · '):a.title)}</span>${icon('chevron')}</button>`:`<span>${icon(l==='learning'?'clock':'check')}${e(label)}</span>`}<small>${e(c.age(n))}</small></div>
-   <footer class="monitor-card-actions">${btn(w.details,'detail','','chevron',`data-id="${n.id}"`)}${btn(w.care,'node-maintenance','','screen',`data-id="${n.id}"`)}${btn(w.settings,'machine-settings','monitor-settings','settings',`data-id="${n.id}" title="${e(w.settings)}"`)}</footer>
+  const {w,esc:e,icon}=c,m=more[c.lang==='en'?'en':'th'],a=displayAssessment(c.assess(n),c.lang),l=level(n,a),label=title(n,a,w);
+  const unack=l==='alarm'&&!n.ack,acked=l==='alarm'&&!!n.ack,wear=c.wearOf?c.wearOf(n):null;
+  const ack=unack&&c.isAdmin?`<button type="button" class="gg-ack" data-action="ack" data-id="${n.id}">${e(c.ackLabel||'ACK')}</button>`:'';
+  const care=`<button type="button" class="gg-ibtn" data-action="node-maintenance" data-id="${n.id}" title="${e(w.care)}" aria-label="${e(w.care)}">${icon('screen')}</button>`;
+  const set=c.isAdmin?`<button type="button" class="gg-ibtn" data-action="machine-settings" data-id="${n.id}" title="${e(w.settings)}" aria-label="${e(w.settings)}">${icon('settings')}</button>`:'';
+  return `<article class="gg-tile${unack?' unack':acked?' acked':''}" data-level="${l}" data-node="${n.id}" data-ack="${!!n.ack}" aria-label="Node ${n.id} · ${e(c.name(n))} · ${e(label)}">
+   <header class="gg-band"><span class="gg-bi">${icon(c.statusIcon(l))}</span>${a.needsAttention?`<button type="button" class="gg-blink" data-action="inspect" data-id="${n.id}" title="${e(a.summary)}">${e(unack?m.unack:acked?m.acked:label)}</button>`:`<span>${e(unack?m.unack:acked?m.acked:label)}</span>`}<span class="gg-band-act">${ack}${care}${set}</span></header>
+   <div class="gg-body"><button type="button" class="gg-id" data-action="detail" data-id="${n.id}"><span class="gg-nno">${pad(n.id)}</span><span class="gg-nm">${e(c.name(n))}</span><span class="gg-fresh">${e(c.age(n))}</span></button>
+   <div class="gg-reads">${c.readings(n,'a')}${c.readings(n,'b')}</div>
+   <div class="gg-wear${wear>=90?' hi':''}"><span>${m.screen}</span><span class="gg-bar"><i style="width:${wear==null?0:Math.min(100,Math.max(0,wear))}%"></i></span><span class="num">${wear==null?'—':Math.round(wear)+'%'}</span></div></div>
   </article>`;
  }
- function cards(input){const c=context(input);let nodes=[...c.nodes].sort((a,b)=>a.id-b.id);if(c.filter==='attention')nodes=nodes.filter(n=>c.assess(n).needsAttention);if(c.filter==='offline')nodes=nodes.filter(n=>['offline','unknown'].includes(n.status));if(c.filter==='all'&&c.offlinePolicy==='group')nodes=nodes.filter(n=>n.status!=='offline');return nodes.map(n=>card(n,c)).join('')||`<div class="empty monitor-empty">${c.icon('grid')}<h2>${c.nodes.length?c.w.noMatch:c.w.noNodes}</h2>${!c.nodes.length?`<p>${c.w.addHint}</p>${c.btn(c.w.add,'add-machine','primary','plus')}`:''}</div>`;}
- function overview(input){
-  const c=context(input),{w,esc:e,icon,btn}=c,tot=counts(c),nodeIssues=c.nodes.filter(n=>c.assess(n).needsAttention).length,hubCodes=c.connected?(c.snapshot?.hub?.codes||[]):[],issues=nodeIssues+(hubCodes.length?1:0);
-  const railLevel=!c.connected?'unknown':tot.alarm?'alarm':tot.fault||hubCodes.length?'fault':tot.offline?'offline':issues?'unknown':'normal';
-  return `<div class="monitor-heading"><div><h1>${w.overview}</h1></div><div class="monitor-heading-actions">${btn(w.add,'add-machine','','plus')}</div></div>
-   <div class="monitor-layout"><section class="monitor-machines" aria-label="${w.tracked}"><div class="monitor-grid-toolbar"><div><strong>${w.tracked}</strong><span class="count">${c.nodes.length}</span></div><div class="segmented" role="group" aria-label="${w.tracked}">${[['all','all'],['attention','attention'],['offline','offline']].map(([v,k])=>`<button data-action="filter" data-value="${v}" aria-pressed="${c.filter===v}">${w[k]}</button>`).join('')}</div></div><div id="machine-cards" class="monitor-grid" data-count="${c.nodes.length}">${cards(c)}</div><div id="offline-group">${c.offlineGroup()}</div></section>
-   <aside class="monitor-rail" aria-label="${w.status}"><section class="rail-clock"><span>${c.lang==='en'?'LOCAL TIME':'เวลาโรงสี'}</span><strong id="header-clock">${c.clock?c.clock():'—'}</strong><small class="rail-clock-date">${c.date?e(c.date()):''}</small></section><section class="rail-status"><div class="rail-heading"><h2>${w.status}</h2><span>${c.nodes.length} ${c.lang==='en'?'Nodes':'เครื่อง'}</span></div><button class="rail-attention" data-level="${railLevel}" data-action="view-attention"><strong>${issues}</strong><span>${!c.connected?w.unknown:issues?w.issues:w.clear}${icon('chevron')}</span></button>${hubCodes.length?`<button class="rail-hub-issue" data-action="view-attention" data-level="fault">${icon('alert')}<span>${w.hub}<small>${hubCodes.map(e).join(' · ')}</small></span></button>`:''}<div class="rail-counts">${['alarm','fault','offline','normal','rest','learning','unknown','empty'].filter(k=>!c.connected?k==='unknown':!['unknown','empty'].includes(k)||tot[k]).map(k=>`<div data-level="${k}"><span class="status-dot"></span><span>${w[k]}</span><strong>${tot[k]}</strong></div>`).join('')}</div></section>
-   <section class="rail-system"><div class="rail-heading"><h2>${w.system}</h2>${icon(c.connected?'link':'unlink')}</div>${c.fixture?`<p class="fixture-note">${w.sample}</p>`:''}${!c.connected?`<div class="rail-disconnected" role="status"><strong>${w[c.connectionState==='stale'?'stale':c.started?'lost':'loading']}</strong><p>${w.lostHint}</p>${btn(w.retry,'retry','','link')}</div>`:''}<div class="rail-system-rows">${c.connected?c.systemRows():''}</div></section>
-   ${c.soundButton?c.soundButton():''}<button class="rail-guide" data-action="nav" data-page="guide">${icon('help')}<span>${w.guide}<small>${w.check}</small></span>${icon('chevron')}</button>${c.pendingCards()?`<details class="rail-discovery"><summary>${w.discovered} (${c.pendingCount})</summary><div>${c.pendingCards()}</div></details>`:''}${c.pendingCount?`<button class="rail-pending" data-action="nav" data-page="settings">${icon('plus')}${w.discovered} (${c.pendingCount})</button>`:''}</aside></div>`;
+ // Always the same 3 × 2 slots. "All" fills unused slots with a quiet add-machine slot; filters fill from the top-left.
+ function cards(input){
+  const c=context(input),m=more[c.lang==='en'?'en':'th'];let nodes=[...c.nodes].sort((a,b)=>a.id-b.id);
+  if(c.filter==='attention')nodes=nodes.filter(n=>c.assess(n).needsAttention);
+  if(c.filter==='offline')nodes=nodes.filter(n=>['offline','unknown'].includes(n.status));
+  if(c.filter==='all'&&c.offlinePolicy==='group')nodes=nodes.filter(n=>n.status!=='offline');
+  // New Nodes (discovery = "temporary") take free slots, each with its own Register button.
+  const pend=[].concat(c.pendingCards()||[]).filter(Boolean);
+  if(!c.nodes.length&&!pend.length)return `<div class="gg-ghost" style="grid-column:1/-1;grid-row:1/-1"><span>${c.icon('grid')}${c.w.noNodes}<small>${c.w.addHint}</small></span></div>`;
+  const out=nodes.map(n=>card(n,c));
+  out.push(...pend.slice(0,Math.max(0,6-out.length)));
+  if(!out.length)return `<div class="gg-ghost"><span>${c.icon('check')}<small>${c.w.noMatch}</small></span></div>`;
+  // Unused slots stay plain (no text, no button) so the 3 × 2 grid keeps its shape; adding a machine is the boxed button in the header.
+  if(c.filter==='all')while(out.length<6)out.push(`<div class="gg-slot-empty" aria-hidden="true"></div>`);
+  return out.join('');
  }
+ function overview(input){
+  const c=context(input),{w,esc:e,icon}=c,m=more[c.lang==='en'?'en':'th'],tot=counts(c),nodeIssues=c.nodes.filter(n=>c.assess(n).needsAttention).length,hubCodes=c.connected?(c.snapshot?.hub?.codes||[]):[],issues=nodeIssues+(hubCodes.length?1:0);
+  const nAttention=c.nodes.filter(n=>c.assess(n).needsAttention).length,nOffline=c.nodes.filter(n=>['offline','unknown'].includes(n.status)).length;
+  const filters=[['all','all',c.nodes.length],['attention','attention',nAttention],['offline','offline',nOffline]];
+  const keys=['alarm','fault','offline','learning','rest','normal'];
+  return `<div class="gg-ov"><section class="gg-ov-left" aria-label="${w.tracked}">
+   <div class="gg-ov-head"><h2>${w.tracked} <span class="gg-muted num">${c.nodes.length}</span></h2><div class="gg-seg" role="group" aria-label="${w.tracked}">${filters.map(([v,k,num])=>`<button type="button" data-action="filter" data-value="${v}" aria-pressed="${c.filter===v}">${w[k]}<span class="gg-n">${num}</span></button>`).join('')}</div>${c.isAdmin?`<button type="button" class="gg-btn" data-action="add-machine">${icon('plus')}${w.add}</button>`:''}</div>
+   <div id="machine-cards" class="gg-tiles" data-count="${c.nodes.length}">${cards(c)}</div><div id="offline-group">${c.offlineGroup()}</div></section>
+   <aside class="gg-rail" aria-label="${w.status}">
+    <section class="gg-card"><div class="gg-rhd"><span class="gg-att-n${issues?'':' zero'}">${c.connected?issues:'—'}</span><span class="gg-att-t">${!c.connected?w.unknown:issues?w.issues:w.clear}<small>${m.of} ${c.nodes.length} ${m.machines}</small></span><button type="button" class="gg-lnk" data-action="view-attention">${m.list}${icon('chevron')}</button></div>
+     <div class="gg-cgrid">${keys.map(k=>`<div data-level="${k}" class="${tot[k]?'':'zero'}"><span>${(m.short[k]||w[k])}</span><strong>${tot[k]}</strong></div>`).join('')}</div>
+     ${hubCodes.length?`<button type="button" class="gg-lnk" style="margin-top:12px" data-action="view-attention">${icon('alert')}${w.hub} · ${hubCodes.map(e).join(' · ')}</button>`:''}</section>
+    <section class="gg-card"><div class="gg-rhd"><h3 class="gg-h3">${w.system}</h3>${c.fixture?`<span class="gg-mode" style="margin-left:auto">MOCK</span>`:''}</div>${c.sysGrid?c.sysGrid():''}${!c.connected&&c.started?`<div class="gg-rhd" style="margin-top:12px"><span class="gg-muted">${w.lostHint}</span><button type="button" class="gg-btn gg-sm" style="margin-left:auto" data-action="retry">${icon('link')}${w.retry}</button></div>`:''}</section>
+    <section class="gg-card gg-feedcard"><div class="gg-rhd"><h3 class="gg-h3">${m.recent}</h3><button type="button" class="gg-lnk" data-action="nav" data-page="history">${m.viewAll}${icon('chevron')}</button></div><ol class="gg-feed">${c.feed?c.feed():''}</ol></section>
+    ${c.pendingCount?`<button type="button" class="gg-btn" data-action="nav" data-page="settings" data-tab="pending">${icon('plus')}${w.discovered} (${c.pendingCount})</button>`:''}
+   </aside></div>`;
+ }
+ // Alarms page (approved mock v15): equal cards for each active problem, then three equal help boxes.
+ const gwords={th:{title:'แจ้งเตือนที่ยังเกิดอยู่',order:'เรียงตามความสำคัญ',since:'เริ่มเมื่อ',dur:'นานแล้ว',ackNo:'ยังไม่รับทราบ',ackYes:'รับทราบแล้ว',ackNone:'ไม่ต้องรับทราบ',view:'ดูเครื่อง',lights:'ความหมายของไฟสถานะ',green:'เขียว',yellow:'เหลือง',red:'แดง',grey:'เทา',greenT:'ทำงานปกติ ได้รับข้อมูล',yellowT:'อุปกรณ์ขัดข้อง ดูรหัสปัญหา',redT:'Alarm ต้องตรวจตอนนี้',greyT:'ปิดอยู่ หรือขาดข้อมูล',contact:'ติดต่อผู้ดูแล',contactT:'แจ้งชื่อเครื่อง, MAC, รหัสปัญหา และเวลาที่พบให้ผู้ดูแลโรงสี',min:'นาที',none:'ไม่มีรายการอื่น'},
+  en:{title:'Active alarms',order:'Sorted by priority',since:'Started',dur:'Duration',ackNo:'Not acknowledged',ackYes:'Acknowledged',ackNone:'No acknowledgement needed',view:'View machine',lights:'What the lights mean',green:'Green',yellow:'Yellow',red:'Red',grey:'Grey',greenT:'Running, data received',yellowT:'Check needed, equipment fault',redT:'Alarm, inspect now',greyT:'Off or no data',contact:'Contact support',contactT:'Give the mill administrator the machine name, MAC, error code and time.',min:'min',none:'No other items'}};
  function guideIssue(c,node,assessment){
-  const {w,esc:e,icon,btn}=c;
+  const {w,esc:e,icon}=c,g=gwords[c.lang==='en'?'en':'th'];
   const a=displayAssessment(assessment,c.lang);
   const action=a.level==='fault'?(a.issues.length?w.faultAction:a.action):a.action;
   const diagnosis=a.level==='fault'&&a.issues.length?'':a.summary;
+  const alarm=a.level==='alarm',unack=alarm&&!node.ack;
+  const now=Number(c.snapshot?.now)||Date.now()/1000,since=Number(node.since)||0;
+  const ack=alarm?(node.ack?`${icon('check')}${g.ackYes}`:g.ackNo):g.ackNone;
   return `<article class="guide-issue" data-level="${a.level}">
-    <header class="guide-issue-head">
-      <div class="guide-identity"><span class="guide-node">Node ${node.id}</span><h3>${e(c.name(node))}</h3></div>
-      <span class="monitor-status" data-level="${a.level}">${icon(c.statusIcon(a.level))}${e(a.title)}</span>
-    </header>
-    <div class="guide-next"><p>${e(action)}</p>${btn(w.details,'detail','','chevron',`data-id="${node.id}"`)}</div>
-    <details class="guide-disclosure" data-guide-disclosure="node-${node.id}">
+    <header class="gg-ac-band" data-ack="${unack?'no':'yes'}"><span class="gg-bi">${icon(c.statusIcon(a.level))}</span><span>${e(a.title)}</span><span class="gg-ac-ack">${ack}</span></header>
+    <div class="gg-ac-body">
+     <div class="guide-identity gg-id"><span class="gg-nno guide-node">${String(node.id).padStart(2,'0')}</span><h3 class="gg-nm">${e(c.name(node))}</h3></div>
+     <div class="gg-reads">${c.readings?c.readings(node,'a')+c.readings(node,'b'):''}</div>
+     <p class="gg-ac-what">${icon('help')}${e(action)}</p>
+     <div class="gg-ac-time"><div><small>${g.since}</small><b class="num">${since&&c.clock?c.clock(since*1000):'—'}</b></div><div><small>${g.dur}</small><b class="num">${since?Math.max(0,Math.round((now-since)/60))+' '+g.min:'—'}</b></div></div>
+     <div class="gg-ac-act">${unack&&c.isAdmin?`<button type="button" class="gg-btn gg-pri" data-action="ack" data-id="${node.id}">${icon('check')}${e(c.ackLabel||'ACK')}</button>`:''}<button type="button" class="gg-btn" data-action="detail" data-id="${node.id}">${g.view}</button></div>
+    </div>
+    <details class="guide-disclosure gg-disc" data-guide-disclosure="node-${node.id}">
       <summary>${w.diagnostics}${a.issues.length?` <span class="guide-code-count">${a.issues.length}</span>`:''}</summary>
       <div class="guide-disclosure-body">
         ${node.mac?`<p class="guide-mac">MAC ${e(node.mac)}</p>`:''}
         ${diagnosis?`<p>${e(diagnosis)}</p>`:''}
         ${a.issues.length?`<ul class="guide-codes">${a.issues.map(i=>`<li><code>${e(i.code)}</code><div><strong>${e(i.title)}</strong>${i.action&&i.action!==action?`<p>${e(i.action)}</p>`:''}</div></li>`).join('')}</ul>`:''}
-        ${btn(w.settings,'machine-settings','','settings',`data-id="${node.id}"`)}
+        ${c.isAdmin!==false?`<button type="button" class="gg-btn gg-sm" data-action="machine-settings" data-id="${node.id}">${icon('settings')}${w.settings}</button>`:''}
       </div>
     </details>
    </article>`;
  }
- function guideReference(c){
-  const {w,icon}=c;
-  const legend=[['alarm','legendAlarm'],['fault','legendFault'],['offline','legendOffline'],['learning','legendLearning'],['rest','legendRest'],['normal','legendNormal']];
-  return `<aside class="guide-reference" aria-label="${w.legend}">
-    <section class="panel guide-quick-steps"><h2>${w.steps}</h2><ol class="guide-steps"><li>${w.step1}</li><li>${w.step2}</li><li>${w.step3}</li></ol></section>
-    <details class="panel guide-disclosure guide-status-reference" data-guide-disclosure="legend">
-      <summary>${w.legend}</summary>
-      <div class="guide-disclosure-body">
-        <dl class="guide-legend">${legend.map(([level,key])=>`<div><dt><span class="monitor-status" data-level="${level}">${icon(c.statusIcon(level))}${w[level]}</span></dt><dd>${w[key]}</dd></div>`).join('')}</dl>
-        <p>${w.ack}</p><p>${w.quality}</p>
-      </div>
-    </details>
-  </aside>`;
+ function guideReference(c,issues){
+  const {w,icon,esc:e}=c,g=gwords[c.lang==='en'?'en':'th'];
+  const lights=[['ok','green','greenT'],['warn','yellow','yellowT'],['bad','red','redT'],['off','grey','greyT']];
+  const report=issues.map(({node,assessment})=>`#${node.id} · ${e(node.mac||'—')} · ${e((node.codes&&node.codes[0])||displayAssessment(assessment,c.lang).title)}${node.since&&c.clock?' · '+c.clock(node.since*1000):''}`).join('<br>')||'—';
+  return `<div class="gg-hgrid">
+    <section class="gg-card gg-hbox guide-reference" data-guide-disclosure="legend" aria-label="${w.legend}"><h2 class="gg-h3">${g.lights}</h2><div class="gg-leds">${lights.map(([cls,name,txt])=>`<div><i class="gg-led ${cls}"></i><b>${g[name]}</b><span>${g[txt]}</span></div>`).join('')}</div><p class="gg-hnote">${w.ack}</p></section>
+    <section class="gg-card gg-hbox guide-quick-steps"><h2 class="gg-h3">${w.steps}</h2><ol class="gg-steps"><li><b>1</b>${w.step1}</li><li><b>2</b>${w.step2}</li><li><b>3</b>${w.step3}</li></ol><p class="gg-hnote">${w.quality}</p></section>
+    <section class="gg-card gg-hbox"><h2 class="gg-h3">${g.contact}</h2><p class="gg-hnote">${g.contactT}</p><div class="gg-copybox num" tabindex="0">${report}</div></section>
+   </div>`;
  }
  function guide(input){
-  const c=context(input),{w,esc:e,icon,btn}=c;
+  const c=context(input),{w,esc:e,icon}=c,g=gwords[c.lang==='en'?'en':'th'];
   w.diagnostics=c.lang==='en'?'Diagnostics':'รหัสและรายละเอียด';
   const items=c.attentionItems().filter(({node})=>!c.selected||node.id===c.selected);
   const hubCodes=c.connected?(c.snapshot?.hub?.codes||[]):[];
   const visibleIssues=c.connected?items.length+(hubCodes.length?1:0):0;
-  let issueContent;
+  let cards;
   if(!c.connected){
    const connectionLabel=w[c.connectionState==='stale'?'stale':c.started?'lost':'loading'];
-   issueContent=`<div class="panel guide-empty" role="status">${icon('unlink')}<p><strong>${connectionLabel}</strong></p>${c.started?btn(w.retry,'retry','','link'):''}</div>`;
+   cards=`<div class="gg-ghost gg-wide" role="status"><span>${icon('unlink')}${connectionLabel}${c.started?`<button type="button" class="gg-btn" data-action="retry">${icon('link')}${w.retry}</button>`:''}</span></div>`;
   }else if(!visibleIssues){
-   issueContent=`<div class="panel guide-empty">${icon('check')}<p>${w.noIssue}</p></div>`;
+   cards=`<div class="gg-ghost gg-wide"><span>${icon('check')}${w.noIssue}</span></div>`;
   }else{
-   issueContent=items.map(({node,assessment})=>guideIssue(c,node,assessment)).join('');
-   if(hubCodes.length)issueContent+=`<article class="guide-issue" data-level="fault">
-    <header class="guide-issue-head"><div class="guide-identity"><h3>${w.hub}</h3></div><span class="monitor-status" data-level="fault">${icon(c.statusIcon('fault'))}${w.fault}</span></header>
-    <div class="guide-next"><p>${hubCodes.map(e).join(' · ')}</p>${btn(w.history,'nav','','history','data-page="history"')}</div>
-   </article>`;
+   const list=items.map(({node,assessment})=>guideIssue(c,node,assessment));
+   if(hubCodes.length)list.push(`<article class="guide-issue" data-level="fault">
+    <header class="gg-ac-band"><span class="gg-bi">${icon(c.statusIcon('fault'))}</span><span>${w.fault}</span></header>
+    <div class="gg-ac-body"><div class="guide-identity gg-id"><h3 class="gg-nm">${w.hub}</h3></div><p class="gg-ac-what">${icon('help')}${hubCodes.map(e).join(' · ')}</p><div class="gg-ac-act"><button type="button" class="gg-btn" data-action="nav" data-page="history">${icon('history')}${w.history}</button></div></div>
+   </article>`);
+   while(list.length%3)list.push(`<div class="gg-ghost"><span><small>${g.none}</small></span></div>`);
+   cards=list.join('');
   }
-  return `<div class="page-head"><h1>${w.guide}</h1>${c.selected?btn(w.showAll,'guide-all','','grid'):''}</div>
-   <div class="guide-layout guide-compact">
-    <section class="guide-active" aria-labelledby="guide-active-heading"><div class="section-head"><h2 id="guide-active-heading">${w.active}</h2>${visibleIssues?`<span class="count">${visibleIssues}</span>`:''}</div>${issueContent}</section>
-    ${guideReference(c)}
-   </div>`;
+  return `<div class="gg-pgh"><h1>${g.title}</h1><span class="num gg-muted">${visibleIssues}</span><span class="gg-muted gg-right">${g.order}</span>${c.selected?`<button type="button" class="gg-btn" data-action="guide-all">${icon('grid')}${w.showAll}</button>`:''}</div>
+   <div class="gg-agrid guide-layout">${cards}</div>
+   ${guideReference(c,c.connected?items:[])}`;
  }
  const api={overview,cards,guide,counts,displayAssessment};root.GGMonitorView=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

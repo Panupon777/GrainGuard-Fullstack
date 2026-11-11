@@ -38,7 +38,8 @@ test('persistent MOCK badge and footer escape server text and appear outside pag
   vm.runInContext(source.slice(start,end),context);
   assert.match(vm.runInContext('siteModeBadge()',context),/MOCK &lt;bad&gt;/);
   const footer=vm.runInContext('footerMarkup()',context);assert.doesNotMatch(footer,/<script>|pumpkintec/i);assert.match(footer,/&lt;script&gt;/);
-  assert.ok(source.includes('<div class="top-actions">${siteModeBadge()}'));
+  // The badge lives in the persistent header (shellHead), never inside page-specific content.
+  assert.match(source,/function shellHead\(\)\{[\s\S]*?<div class="gg-head-l">[^\n]*\$\{siteModeBadge\(\)\}/);
 });
 test('desktop app icon embeds the exact supplied product PNG with a light backing tile',()=>{
   const svg=fs.readFileSync(path.join(__dirname,'assets/brand/grainguard-app.svg'),'utf8');

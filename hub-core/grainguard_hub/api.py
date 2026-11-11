@@ -530,7 +530,7 @@ def create_app(hub: "Hub", auth_store=None,site_id="pumpkintec") -> FastAPI:
             raise HTTPException(404, "Not found")
         suffix = os.path.splitext(asset_path)[1].lower()
         login_html = asset_path in ("login/local.html", "login/online.html")
-        if not login_html and suffix not in (".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico"):
+        if not login_html and suffix not in (".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff2"):
             raise HTTPException(404, "Not found")
         dashboard = find_dashboard(cfg.dashboard_path)
         if not dashboard:

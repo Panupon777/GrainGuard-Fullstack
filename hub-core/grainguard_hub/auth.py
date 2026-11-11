@@ -253,7 +253,8 @@ class AccessMiddleware:
         try:
             session = self.store.session(request)
             if method not in ("GET", "HEAD", "OPTIONS"):
-                csrf_check(request, session if path not in ("/auth/login", "/auth/signup") else None, self.store.public_origin)
+                # Read the (capped) body before any accept/reject decision: answering a POST with unread body bytes
+                # resets the connection and the client gets a network error instead of the 401/403.
                 size = 0
                 chunks = []
                 while True:
@@ -269,6 +270,7 @@ class AccessMiddleware:
                 async def replay():
                     return chunks.pop(0) if chunks else {"type": "http.request", "body": b""}
                 receive = replay
+                csrf_check(request, session if path not in ("/auth/login", "/auth/signup") else None, self.store.public_origin)
             if path == "/" and (not session or session["access"] not in ("admin","approved")):
                 from fastapi.responses import RedirectResponse
                 await RedirectResponse("/login/"+channel(scope)+".html", status_code=303)(scope,receive,send)

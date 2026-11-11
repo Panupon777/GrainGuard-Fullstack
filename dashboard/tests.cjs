@@ -75,3 +75,11 @@ test('an explicit empty tracked list stays empty after delete rather than restor
  assert.equal(M.counts(nodes).registered,0);assert.deepEqual(M.visible(nodes),[]);
  assert.equal(M.normalizeSnapshot(snapshot()).length,1); // Only omitted configuration uses the initial default.
 });
+test('Piezo sparkline and alarm channel come only from the Hub and only when valid',()=>{
+ const n=M.normalizeSnapshot({nodes:[rawNode(1,{spark_b:[1.1,null,1.4],alarm_active:true,alarm_ch:'B'})]})[0];
+ assert.deepEqual(n.sparkB,[1.1,null,1.4]);assert.equal(n.alarmCh,'B');
+ const off=M.normalizeSnapshot({nodes:[rawNode(1,{chb:false,spark_b:[1.1],alarm_active:false,alarm_ch:'A'})]})[0];
+ assert.deepEqual(off.sparkB,[]);assert.equal(off.alarmCh,null);
+ const bad=M.normalizeSnapshot({nodes:[rawNode(1,{alarm_active:true,alarm_ch:'X'})]})[0];assert.equal(bad.alarmCh,null);
+ const lost=M.normalizeSnapshot({nodes:[rawNode(1,{spark_b:[1.2]})]},[1],Date.now(),false)[0];assert.deepEqual(lost.sparkB,[]);
+});
